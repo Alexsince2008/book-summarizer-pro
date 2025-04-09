@@ -1,0 +1,223 @@
+{% extends "layout.html" %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("Summary page script loaded");
+        
+        // Get summary type elements and generate button
+        const summaryTypes = document.querySelectorAll('.summary-type');
+        const generateBtn = document.getElementById('generate-summary-btn');
+        const summaryContainer = document.getElementById('summary-container');
+        const summaryId = summaryContainer.dataset.summaryId;
+        
+        // Pre-select first option and enable button
+        if (summaryTypes.length > 0) {
+            summaryTypes[0].classList.add('active');
+        }
+        
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            
+            // Add pulse animation
+            setTimeout(() => {
+                generateBtn.classList.add('pulse-attention');
+            }, 1000);
+        }
+        
+        // Make summary types clickable
+        summaryTypes.forEach(type => {
+            type.style.cursor = 'pointer';
+            
+            type.addEventListener('click', function() {
+                // Remove active class from all types
+                summaryTypes.forEach(t => t.classList.remove('active'));
+                
+                // Add active class to clicked type
+                this.classList.add('active');
+            });
+        });
+        
+        // Generate button click event
+        if (generateBtn) {
+            generateBtn.addEventListener('click', function() {
+                const selectedType = document.querySelector('.summary-type.active');
+                
+                if (!selectedType) {
+                    alert('Please select a summary type first.');
+                    return;
+                }
+                
+                const summaryType = selectedType.dataset.type;
+                console.log('Generating summary type:', summaryType);
+                
+                // Show loader
+                const summaryLoader = document.getElementById('summary-loader');
+                if (summaryLoader) summaryLoader.classList.remove('d-none');
+                
+                // Hide content
+                const summaryContent = document.getElementById('summary-content');
+                if (summaryContent) summaryContent.classList.add('d-none');
+                
+                // Hide error message
+                const errorMessage = document.getElementById('error-message');
+                if (errorMessage) errorMessage.classList.add('d-none');
+                
+                // Disable button during processing
+                generateBtn.disabled = true;
+                
+                // Call API to generate summary
+                fetch('/generate_summary', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        summaryId: summaryId,
+                        summaryType: summaryType
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Hide loader
+                    if (summaryLoader) summaryLoader.classList.add('d-none');
+                    
+                    if (data.error) {
+                        if (errorMessage) {
+                            errorMessage.textContent = data.error;
+                            errorMessage.classList.remove('d-none');
+                        } else {
+                            alert(data.error);
+                        }
+                        if (generateBtn) generateBtn.disabled = false;
+                        return;
+                    }
+                    
+                    // Show summary content
+                    if (summaryContent) {
+                        summaryContent.innerHTML = formatSummary(data.summary);
+                        summaryContent.classList.remove('d-none');
+                        summaryContent.classList.add('fade-in');
+                    }
+                    
+                    // Re-enable button
+                    if (generateBtn) generateBtn.disabled = false;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while generating the summary.');
+                    
+                    if (summaryLoader) summaryLoader.classList.add('d-none');
+                    if (generateBtn) generateBtn.disabled = false;
+                });
+            });
+        }
+        
+        function formatSummary(text) {
+            // Convert line breaks to paragraphs and format the text
+            return text.split('\n\n')
+                .filter(para => para.trim() !== '')
+                .map(para => `<p>${para.replace(/\n/g, '<br>')}</p>`)
+                .join('');
+        }
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4" id="summary-container" data-summary-id="{{ summary.id }}">
+    <div class="col-md-10">
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2 class="mb-0">{{ summary.title }}</h2>
+                    <span class="badge badge-purple">{{ summary.page_count }} pages</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h4 class="fw-light mb-3">Select Summary Type</h4>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <div class="summary-type active" data-type="short">
+                                <h5><i class="fas fa-bolt me-2"></i> Short Summary</h5>
+                                <p class="text-secondary mb-0">100-150 words, focusing on the most essential information.</p>
+                                <small class="text-secondary">Perfect for quick overview</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="summary-type" data-type="brief">
+                                <h5><i class="fas fa-book me-2"></i> Brief Summary</h5>
+                                <p class="text-secondary mb-0">300-400 words, covering main themes and points.</p>
+                                <small class="text-secondary">Good balance of detail and brevity</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="summary-type" data-type="detailed">
+                                <h5><i class="fas fa-file-alt me-2"></i> Detailed Summary</h5>
+                                <p class="text-secondary mb-0">800-1000 words, thorough analysis of content.</p>
+                                <small class="text-secondary">In-depth coverage of all major elements</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-4">
+                    <button id="generate-summary-btn" class="btn btn-primary btn-lg px-5 py-3 glow-border fw-bold">
+                        <i class="fas fa-magic me-2"></i> Generate Summary
+                    </button>
+                    <p class="alert alert-info mt-3 mx-auto" style="max-width: 500px;">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Tip:</strong> Short summary is pre-selected. Click the button above to generate, or select a different summary type first
+                    </p>
+                </div>
+                
+                <!-- Error message area -->
+                <div id="error-message" class="alert alert-danger mt-4 d-none"></div>
+                
+                <!-- Loading animation -->
+                <div id="summary-loader" class="text-center mt-5 d-none">
+                    <div class="loading-animation">
+                        <div></div><div></div><div></div><div></div>
+                    </div>
+                    <p>Analyzing and summarizing your book...</p>
+                    <p class="text-secondary"><small>This may take a minute for longer books</small></p>
+                </div>
+                
+                <!-- Summary content area -->
+                <div id="summary-content" class="summary-content mt-5 d-none"></div>
+            </div>
+        </div>
+        
+        <!-- Book visualization -->
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Book Information</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-4">
+                            <h5 class="text-secondary">Document Details</h5>
+                            <ul class="list-group list-group-flush bg-transparent">
+                                <li class="list-group-item bg-transparent border-0 ps-0">
+                                    <strong><i class="fas fa-file-pdf me-2 text-purple"></i> Filename:</strong> {{ summary.filename }}
+                                </li>
+                                <li class="list-group-item bg-transparent border-0 ps-0">
+                                    <strong><i class="fas fa-file-alt me-2 text-purple"></i> Pages:</strong> {{ summary.page_count }}
+                                </li>
+                                <li class="list-group-item bg-transparent border-0 ps-0">
+                                    <strong><i class="fas fa-calendar-alt me-2 text-purple"></i> Uploaded:</strong> {{ summary.created_at.strftime('%B %d, %Y') }}
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <img src="https://images.unsplash.com/photo-1527874594978-ee4f8a05b4c1" class="img-fluid rounded" alt="PDF document visualization">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

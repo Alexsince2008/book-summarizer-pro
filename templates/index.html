@@ -1,0 +1,430 @@
+{% extends "layout.html" %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("Index page script loaded");
+        
+        // Summary type selection
+        const summaryTypes = document.querySelectorAll('.summary-type');
+        summaryTypes.forEach(type => {
+            type.style.cursor = 'pointer';
+            
+            type.addEventListener('click', function() {
+                // Remove active class from all types
+                summaryTypes.forEach(t => t.classList.remove('active'));
+                
+                // Add active class to clicked type
+                this.classList.add('active');
+            });
+        });
+        
+        // Generate summary button click event
+        const generateBtn = document.getElementById('generate-summary-btn');
+        if (generateBtn) {
+            generateBtn.addEventListener('click', function() {
+                const summaryOptions = document.getElementById('summary-options');
+                const summaryId = summaryOptions.dataset.summaryId;
+                
+                if (!summaryId) {
+                    alert('No book has been uploaded yet.');
+                    return;
+                }
+                
+                const selectedType = document.querySelector('.summary-type.active');
+                if (!selectedType) {
+                    alert('Please select a summary type first.');
+                    return;
+                }
+                
+                const summaryType = selectedType.dataset.type;
+                console.log('Generating summary type:', summaryType, 'for book ID:', summaryId);
+                
+                // Show loader
+                const summaryLoader = document.getElementById('summary-loader');
+                if (summaryLoader) summaryLoader.classList.remove('d-none');
+                
+                // Hide content
+                const summaryContent = document.getElementById('summary-content');
+                if (summaryContent) summaryContent.classList.add('d-none');
+                
+                // Hide error message
+                const errorMessage = document.getElementById('error-message');
+                if (errorMessage) errorMessage.classList.add('d-none');
+                
+                // Disable button during processing
+                generateBtn.disabled = true;
+                
+                // Call API to generate summary
+                fetch('/generate_summary', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        summaryId: summaryId,
+                        summaryType: summaryType
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Hide loader
+                    if (summaryLoader) summaryLoader.classList.add('d-none');
+                    
+                    if (data.error) {
+                        if (errorMessage) {
+                            errorMessage.textContent = data.error;
+                            errorMessage.classList.remove('d-none');
+                        } else {
+                            alert(data.error);
+                        }
+                        if (generateBtn) generateBtn.disabled = false;
+                        return;
+                    }
+                    
+                    // Show summary content
+                    if (summaryContent) {
+                        summaryContent.innerHTML = formatSummary(data.summary);
+                        summaryContent.classList.remove('d-none');
+                        summaryContent.classList.add('fade-in');
+                        summaryContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                    
+                    // Re-enable button
+                    if (generateBtn) generateBtn.disabled = false;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while generating the summary.');
+                    
+                    if (summaryLoader) summaryLoader.classList.add('d-none');
+                    if (generateBtn) generateBtn.disabled = false;
+                });
+            });
+        }
+        
+        function formatSummary(text) {
+            // Convert line breaks to paragraphs and format the text
+            return text.split('\n\n')
+                .filter(para => para.trim() !== '')
+                .map(para => `<p>${para.replace(/\n/g, '<br>')}</p>`)
+                .join('');
+        }
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-10">
+        <div class="text-center mb-5">
+            <h1 class="display-4 fw-light">
+                <span class="text-purple glow-text">AI-Powered</span> Book Summarization
+            </h1>
+            <p class="lead">
+                Upload any book PDF and get instant summaries at your preferred level of detail.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Section -->
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card mb-5">
+            <div class="card-body">
+                <h3 class="card-title text-center mb-4">Upload Your Book</h3>
+                
+                <!-- Dropzone Upload Area -->
+                <form id="pdf-upload" class="dropzone" action="/upload" method="post">
+                    <div class="fallback">
+                        <input name="file" type="file" accept=".pdf" />
+                    </div>
+                </form>
+                
+                <!-- Upload Status -->
+                <div id="upload-status" class="alert alert-info mt-3 d-none"></div>
+                
+                <!-- Progress Bar -->
+                <div id="upload-progress" class="mt-3 d-none">
+                    <div class="progress">
+                        <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-3">
+                    <small class="text-secondary">Only PDF files are supported, max size 20MB</small>
+                </div>
+
+                <!-- Summary Type Selection -->
+                <div id="summary-options" class="mt-4" style="display: none;">
+                    <h5 class="mb-3">Select Summary Type</h5>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <div class="summary-type active" data-type="short">
+                                <h5><i class="fas fa-bolt me-2"></i> Short Summary</h5>
+                                <p class="text-secondary mb-0">100-150 words, focusing on the most essential information.</p>
+                                <small class="text-secondary">Perfect for quick overview</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="summary-type" data-type="brief">
+                                <h5><i class="fas fa-book me-2"></i> Brief Summary</h5>
+                                <p class="text-secondary mb-0">300-400 words, covering main themes and points.</p>
+                                <small class="text-secondary">Good balance of detail and brevity</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="summary-type" data-type="detailed">
+                                <h5><i class="fas fa-file-alt me-2"></i> Detailed Summary</h5>
+                                <p class="text-secondary mb-0">800-1000 words, thorough analysis of content.</p>
+                                <small class="text-secondary">In-depth coverage of all major elements</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <button id="generate-summary-btn" class="btn btn-primary btn-lg px-5 py-3 glow-border fw-bold">
+                            <i class="fas fa-magic me-2"></i> Generate Summary
+                        </button>
+                        <p class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Tip:</strong> Short summary is pre-selected. Click the button above to generate, or select a different summary type first
+                        </p>
+                    </div>
+                    
+                    <!-- Error message area -->
+                    <div id="error-message" class="alert alert-danger mt-4 d-none"></div>
+                    
+                    <!-- Loading animation -->
+                    <div id="summary-loader" class="text-center mt-5 d-none">
+                        <div class="loading-animation">
+                            <div></div><div></div><div></div><div></div>
+                        </div>
+                        <p>Analyzing and summarizing your book...</p>
+                        <p class="text-secondary"><small>This may take a minute for longer books</small></p>
+                    </div>
+                    
+                    <!-- Summary content area -->
+                    <div id="summary-content" class="summary-content mt-5 d-none"></div>
+                </div>
+                
+                <div id="upload-summaries" class="mt-4 {% if not recent_summaries %}d-none{% endif %}">
+                    <h5 class="text-center">Your Recent Uploads</h5>
+                    <div class="list-group">
+                        {% for summary in recent_summaries %}
+                        <a href="/summary/{{ summary.id }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-file-pdf text-purple me-2"></i>
+                                {{ summary.title }}
+                            </div>
+                            <span class="badge badge-purple">{{ summary.page_count }} pages</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- How It Works Section -->
+<div class="row mt-5 mb-5" id="how-it-works">
+    <div class="col-12 text-center mb-4">
+        <h2 class="fw-light">How It Works</h2>
+        <p class="text-secondary">Three simple steps to get your book summaries</p>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="fas fa-file-upload fa-3x text-purple"></i>
+                </div>
+                <h4>1. Upload Your PDF</h4>
+                <p class="text-secondary">Drag and drop your book PDF into the upload area or click to browse your files.</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="fas fa-brain fa-3x text-purple"></i>
+                </div>
+                <h4>2. AI Analysis</h4>
+                <p class="text-secondary">Our advanced AI reads and analyzes your book to identify key themes and information.</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <i class="fas fa-list-alt fa-3x text-purple"></i>
+                </div>
+                <h4>3. Choose Summary Type</h4>
+                <p class="text-secondary">Select from short, brief, or detailed summaries depending on your needs.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Features Section -->
+<div class="row mt-5 mb-5">
+    <div class="col-12 text-center mb-4">
+        <h2 class="fw-light">Features</h2>
+        <p class="text-secondary">Powered by advanced AI technology</p>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="me-3">
+                        <div class="bg-purple p-3 rounded-circle">
+                            <i class="fas fa-tachometer-alt text-white"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">Fast Processing</h4>
+                        <p class="text-secondary mb-0">Get summaries in seconds, not hours</p>
+                    </div>
+                </div>
+                <p>Our AI processes even large books quickly, delivering accurate summaries without the wait.</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="me-3">
+                        <div class="bg-purple p-3 rounded-circle">
+                            <i class="fas fa-layer-group text-white"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">Multiple Detail Levels</h4>
+                        <p class="text-secondary mb-0">Tailor to your needs</p>
+                    </div>
+                </div>
+                <p>Choose from short summaries for quick overviews, brief for moderate detail, or detailed for comprehensive insights.</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="me-3">
+                        <div class="bg-purple p-3 rounded-circle">
+                            <i class="fas fa-lock text-white"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">Privacy Focused</h4>
+                        <p class="text-secondary mb-0">Your data remains yours</p>
+                    </div>
+                </div>
+                <p>We process your books securely and don't store the original text beyond the session.</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="me-3">
+                        <div class="bg-purple p-3 rounded-circle">
+                            <i class="fas fa-file-pdf text-white"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="mb-0">PDF Support</h4>
+                        <p class="text-secondary mb-0">Works with all PDF books</p>
+                    </div>
+                </div>
+                <p>Upload any PDF book file up to 20MB and get accurate summaries regardless of formatting.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Testimonials Section with Stock Photos -->
+<div class="row mt-5 justify-content-center">
+    <div class="col-12 text-center mb-4">
+        <h2 class="fw-light">Reading Inspiration</h2>
+        <p class="text-secondary">Discover the joy of books with AI assistance</p>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-body p-0">
+                <img src="https://images.unsplash.com/photo-1509114859430-5f2c74177f4b" class="img-fluid rounded-top" alt="Books on bookshelf">
+                <div class="p-4">
+                    <h5>Expand Your Knowledge</h5>
+                    <p class="text-secondary">Read more books in less time with AI summaries that capture key insights.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-body p-0">
+                <img src="https://images.unsplash.com/photo-1485546246426-74dc88dec4d9" class="img-fluid rounded-top" alt="Person reading book">
+                <div class="p-4">
+                    <h5>Focus on What Matters</h5>
+                    <p class="text-secondary">Quickly determine which books deserve your full attention and which can be summarized.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-body p-0">
+                <img src="https://images.unsplash.com/photo-1476469535352-80159d0af31d" class="img-fluid rounded-top" alt="Coffee and book">
+                <div class="p-4">
+                    <h5>Save Time</h5>
+                    <p class="text-secondary">Get the essence of any book in minutes rather than spending hours reading cover to cover.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PDF Showcase -->
+<div class="row mt-5 justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h3 class="fw-light mb-4">Any PDF Book, Instantly Summarized</h3>
+                        <p>Our AI can process and analyze even complex books, academic papers, and technical documents, extracting the most important information.</p>
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="fas fa-check text-purple me-2"></i> Fiction and non-fiction books</li>
+                            <li class="mb-2"><i class="fas fa-check text-purple me-2"></i> Academic papers and research</li>
+                            <li class="mb-2"><i class="fas fa-check text-purple me-2"></i> Technical documentation</li>
+                            <li class="mb-2"><i class="fas fa-check text-purple me-2"></i> Business reports and case studies</li>
+                        </ul>
+                        <div class="mt-4">
+                            <a href="#pdf-upload" class="btn btn-primary">Get Started Now</a>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-center">
+                        <img src="https://images.unsplash.com/photo-1697382608813-df6eb720164f" class="img-fluid rounded shadow-sm" alt="PDF document example" style="max-height: 300px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
