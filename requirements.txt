@@ -1,0 +1,6 @@
+Flask
+Flask-SQLAlchemy
+SQLAlchemy
+PyPDF2
+google-generativeai
+psycopg2-binary
